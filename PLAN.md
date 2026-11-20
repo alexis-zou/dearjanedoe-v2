@@ -285,24 +285,40 @@ Treat user safety as the top priority and keep this section in sync with the cod
 guardrail changes, update both `lib/prompts/system.md` (and/or `app/api/chat/route.ts`) AND
 this list, so the plan never drifts from what actually ships.
 
-**Implemented (Agent A, as of 2026-11-06):**
-1. **Crisis-first, two layers.** System prompt rule #1 forces crisis/self-harm/immediate-
-   danger responses to lead with 911 / 988 / Crisis Text Line (HOME→741741) / RAINN
-   (800-656-4673) before anything else. Defense-in-depth: `route.ts` runs a crisis-pattern
-   check on the latest user message and appends a non-cached "SAFETY OVERRIDE" system block
-   reinforcing this, so the behavior is anchored even if the model under-reacts.
-2. **No doubting accounts / no report-or-not advice.** Prompt rule #3: never question an
-   account; never tell someone whether to report — lay out options neutrally, defer the
-   decision to them, point to a confidential advocate.
-3. **Hallucination control.** Prompt rule #4 + grounded corpus: answer only from the
-   federal baseline + the 3 curated schools; cite the school; for any other school, give the
+**Implemented (as of 2026-11-20):**
+
+All prompt text (rules, never-do examples, crisis override, reviewer instructions) lives in
+one editable file, `lib/prompts/system.md`, split by `<!-- SECTION: ... -->` markers
+(parsed by `lib/ai/prompts.ts`). In dev, edits apply on the next message. Rule numbers below
+refer to that file.
+
+1. **Crisis-first, three layers.** Rule #1 forces crisis/self-harm/immediate-danger
+   responses to lead with 911 / 988 / Crisis Text Line (HOME→741741) / RAINN
+   (800-656-4673) before anything else. `route.ts` runs the crisis-pattern check in
+   `lib/crisis.ts` on the latest user message and appends the non-cached "crisis-override"
+   section. After review, a deterministic backstop (`lib/ai/review.ts`) blocks any reply to
+   a crisis-pattern message that doesn't include 988.
+2. **Don't raise suicide unprompted.** Rule #2: only discuss suicide/self-harm if the person
+   has raised it or shown signs; no "just in case" lines for someone who is only sad or upset.
+3. **Information tool, not a companion.** Rule #4: no "I'm here for you / either way", no
+   open-ended emotional check-ins ("How are you doing right now?"); point to real people.
+   Never-do example 1 shows the pattern.
+4. **No doubting accounts / no report-or-not advice.** Rule #5: never question an account;
+   never tell someone whether to report — lay out options neutrally, defer the decision to
+   them, point to a confidential advocate.
+5. **Hallucination control.** Rule #6 + grounded corpus: answer only from the federal
+   baseline + the 3 curated schools; cite the school; for any other school, give the
    federal baseline and how to find its Title IX office — never invent policy/offices/
    numbers/deadlines. School docs carry "as of" dates; Cornell/Berkeley are flagged
    VERIFY-BEFORE-DEMO (no official PDF was in the source set).
-4. **Privacy.** Prompt rule #5: don't solicit identifying/sensitive details; remind users
-   the chat isn't a confidential channel. Input caps in `route.ts` (max messages, max chars).
-5. **Not legal advice / not a reporting channel.** Prompt rule #6 + footer copy.
-6. **Key safety.** `ANTHROPIC_API_KEY` server-only; `.env.local` gitignored; generic error
+6. **Privacy.** Rule #7: don't solicit identifying/sensitive details; remind users the chat
+   isn't a confidential channel. Input caps in `route.ts` (max messages, max chars).
+7. **Not legal advice / not a reporting channel.** Rule #8 + footer copy.
+8. **Second-model review.** Claude Opus 5 writes each reply; Claude Sonnet 5 reviews it
+   against the same rules, never-do examples and corpus before it's sent. A critical issue
+   gets one rewrite; if that still fails, or review can't run, the user gets a fixed safe
+   fallback reply (fail closed). Logs record issue categories only, never content.
+9. **Key safety.** `HOPSCOTCH_API_KEY` server-only; `.env.local` gitignored; generic error
    messages never leak key state.
 
 **Backlog / next safety iterations (candidates):**
